@@ -1,0 +1,8 @@
+name = "dewify-test-auth"
+main = "worker.js"
+compatibility_date = "2026-09-27"
+
+[vars]
+RESEND_FROM = "digitalproducts@dewify.shop"
+WEB_ORIGIN = "https://devansh-ggw.github.io"
+APP_URL = "https://devansh-ggw.github.io/DEWIFY-TEST/account.html"
