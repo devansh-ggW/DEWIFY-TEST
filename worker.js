@@ -68,6 +68,7 @@ function json(data, status, origin, env) {
 async function requestMagicLink(request, env, origin) {
   const body = await request.json().catch(() => null);
   const email = normalizeEmail(body?.email);
+  const mode = body?.mode === "signup" ? "signup" : "login";
 
   if (!email || !isEmail(email)) {
     return json({ error: "Enter a valid email address." }, 400, origin, env);
@@ -107,9 +108,11 @@ async function requestMagicLink(request, env, origin) {
     body: JSON.stringify({
       from: env.RESEND_FROM,
       to: [email],
-      subject: "Sign in to DEWIFY",
-      html: emailHtml(email, verifyUrl.toString()),
-      text: "Sign in to DEWIFY: " + verifyUrl.toString() + "\n\nThis link expires in 10 minutes."
+      subject: mode === "signup" ? "Create your DEWIFY account" : "Log in to DEWIFY",
+      html: emailHtml(email, verifyUrl.toString(), mode),
+      text: (mode === "signup" ? "Create your DEWIFY account: " : "Log in to DEWIFY: ") +
+        verifyUrl.toString() +
+        "\n\nThis link expires in 10 minutes."
     })
   });
 
@@ -343,16 +346,23 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function emailHtml(email, link) {
+function emailHtml(email, link, mode) {
+  const isSignup = mode === "signup";
+  const heading = isSignup ? "Create your account." : "Welcome back.";
+  const intro = isSignup
+    ? "Use the button below to create your DEWIFY account with this email:"
+    : "Use the button below to log in to DEWIFY with this email:";
+  const button = isSignup ? "CREATE DEWIFY ACCOUNT ↗" : "LOG IN TO DEWIFY ↗";
+
   return `<!doctype html>
 <html lang="en">
 <body style="margin:0;background:#070707;color:#f5f5f5;font-family:Arial,sans-serif">
   <div style="max-width:560px;margin:0 auto;padding:48px 24px">
     <p style="font-size:11px;letter-spacing:.18em;color:#929292">DEWIFY / SIGN IN</p>
-    <h1 style="font-size:42px;line-height:1;letter-spacing:-.05em;margin:18px 0">Welcome back.</h1>
-    <p style="color:#aaa;line-height:1.7">Use the button below to sign in to DEWIFY as <strong style="color:#f5f5f5">${escapeHtml(email)}</strong>.</p>
+    <h1 style="font-size:42px;line-height:1;letter-spacing:-.05em;margin:18px 0">${heading}</h1>
+    <p style="color:#aaa;line-height:1.7">${intro} <strong style="color:#f5f5f5">${escapeHtml(email)}</strong></p>
     <p style="margin:32px 0">
-      <a href="${link}" style="display:inline-block;padding:14px 18px;background:#f5f5f5;color:#070707;text-decoration:none;font-weight:700">SIGN IN TO DEWIFY ↗</a>
+      <a href="${link}" style="display:inline-block;padding:14px 18px;background:#f5f5f5;color:#070707;text-decoration:none;font-weight:700">${button}</a>
     </p>
     <p style="font-size:12px;color:#707070;line-height:1.6">This link expires in 10 minutes. If you didn't request it, you can ignore this email.</p>
   </div>
