@@ -4,10 +4,12 @@ compatibility_date = "2026-09-27"
 
 [vars]
 RESEND_FROM = "digitalproducts@dewify.shop"
-WEB_ORIGIN = "https://devansh-ggw.github.io"
-APP_URL = "https://devansh-ggw.github.io/DEWIFY-TEST/account.html"
-
 [[d1_databases]]
 binding = "DB"
 database_name = "dewify-test-db"
 database_id = "acf62d71-5031-4dde-b697-0610cd7a8d15"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
