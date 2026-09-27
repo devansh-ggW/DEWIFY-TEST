@@ -7,10 +7,7 @@ RESEND_FROM = "digitalproducts@dewify.shop"
 WEB_ORIGIN = "https://devansh-ggw.github.io"
 APP_URL = "https://devansh-ggw.github.io/DEWIFY-TEST/account.html"
 
-# The D1 binding can be added here when deploying with Wrangler.
-# Replace the placeholder values with the IDs from the Cloudflare D1 dashboard.
-#
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "dewify-test-db"
-# database_id = "PASTE_D1_DATABASE_ID_HERE"
+[[d1_databases]]
+binding = "DB"
+database_name = "dewify-test-db"
+database_id = "acf62d71-5031-4dde-b697-0610cd7a8d15"
