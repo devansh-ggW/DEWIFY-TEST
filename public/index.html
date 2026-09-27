@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#070707">
+  <meta name="description" content="DEWIFY website customizer experiment">
+  <title>DEWIFY TEST — Website Customizer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas id="starfield" aria-hidden="true"></canvas>
+
+  <header class="site-header">
+    <div class="container nav">
+      <a class="brand" href="./">DEWIFY<span>/TEST</span></a>
+      <span class="store-pill">WEBSITE CUSTOMIZER</span>
+    </div>
+  </header>
+
+  <main class="container shell">
+    <section class="intro">
+      <p class="eyebrow">DEWIFY / EXPERIMENT</p>
+      <h1>Tell us what the site<br><span>should feel like.</span></h1>
+      <p class="lead">Fill in the details, pick a theme, and watch a ready-to-edit website build itself in the browser.</p>
+    </section>
+
+    <section class="workspace">
+      <form id="siteForm" class="panel survey" autocomplete="off">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">01 / YOUR DETAILS</p>
+            <h2>Website brief</h2>
+          </div>
+          <span class="step">LIVE</span>
+        </div>
+
+        <label>
+          <span>Business / brand name</span>
+          <input id="businessName" name="businessName" maxlength="60" placeholder="Dewify Studio" required>
+        </label>
+
+        <label>
+          <span>Headline</span>
+          <input id="headline" name="headline" maxlength="100" placeholder="Build something people remember" required>
+        </label>
+
+        <label>
+          <span>What do you do?</span>
+          <textarea id="about" name="about" maxlength="420" rows="4" placeholder="A short description of the business, service or personal brand." required></textarea>
+        </label>
+
+        <div class="split">
+          <label>
+            <span>Email</span>
+            <input id="email" name="email" type="email" maxlength="120" placeholder="hello@example.com">
+          </label>
+          <label>
+            <span>Phone</span>
+            <input id="phone" name="phone" maxlength="30" placeholder="+91 98765 43210">
+          </label>
+        </div>
+
+        <label>
+          <span>Website / social link</span>
+          <input id="link" name="link" maxlength="180" placeholder="https://instagram.com/yourbrand">
+        </label>
+
+        <div class="panel-head compact">
+          <div>
+            <p class="eyebrow">02 / VISUAL DIRECTION</p>
+            <h2>Choose a theme</h2>
+          </div>
+        </div>
+
+        <div class="theme-grid" role="radiogroup" aria-label="Website themes">
+          <button type="button" class="theme-card active" data-theme="obsidian" aria-pressed="true">
+            <strong>Obsidian</strong><span>Dark / sharp / premium</span>
+          </button>
+          <button type="button" class="theme-card" data-theme="paper" aria-pressed="false">
+            <strong>Paper</strong><span>Bright / clean / editorial</span>
+          </button>
+          <button type="button" class="theme-card" data-theme="signal" aria-pressed="false">
+            <strong>Signal</strong><span>Dark / energetic / bold</span>
+          </button>
+        </div>
+
+        <label class="color-row">
+          <span>Accent color</span>
+          <div class="color-control">
+            <input id="accent" name="accent" type="color" value="#a78bfa" aria-label="Accent color">
+            <code id="accentHex">#A78BFA</code>
+          </div>
+        </label>
+
+        <button class="generate" type="button" id="generateBtn">GENERATE WEBSITE <span>↗</span></button>
+        <p class="fine-print">Everything in this prototype happens locally in the browser. Nothing is submitted to a server.</p>
+      </form>
+
+      <section class="panel preview-wrap" aria-label="Website preview">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">03 / LIVE PREVIEW</p>
+            <h2>Generated site</h2>
+          </div>
+          <span id="previewStatus" class="step">AUTO</span>
+        </div>
+
+        <div id="preview" class="site-preview">
+          <div class="preview-browser">
+            <span></span><span></span><span></span>
+          </div>
+          <div id="previewSite" class="preview-site"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="stars.js"></script>
+  <script src="app.js"></script>
+  <script src="auth.js"></script>
+</body>
+</html>
