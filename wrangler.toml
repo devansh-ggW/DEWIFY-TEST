@@ -14,7 +14,3 @@ database_id = "acf62d71-5031-4dde-b697-0610cd7a8d15"
 directory = "./public"
 binding = "ASSETS"
 run_worker_first = true
-
-[[routes]]
-pattern = "digitalproducts.dewify.shop"
-custom_domain = true
