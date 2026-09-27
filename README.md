@@ -58,13 +58,13 @@ If deploying with Wrangler, `wrangler.toml` contains a commented D1 binding temp
 
 ### Frontend
 
-After the Worker is deployed, replace the placeholder in `auth.js`:
+`auth.js` now uses same-origin `/api/*` requests. No Worker URL is hard-coded into the frontend.
 
-`https://YOUR-WORKER.workers.dev`
+`/api/*`
 
 with the real Worker URL.
 
-The frontend uses credentialed cross-origin requests because GitHub Pages and the Worker are separate origins.
+The app is served by the same Worker that handles the API, so authentication uses same-origin requests and cookies.
 
 ## Files
 
