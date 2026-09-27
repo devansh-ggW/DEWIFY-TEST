@@ -12,7 +12,20 @@ export default {
     }
 
     try {
-      if (!env.DB) throw new Error("D1 binding DB is missing.");
+      if (url.pathname === "/" || url.pathname === "/api/health") {
+        return json({
+          ok: true,
+          worker: "dewify-test-auth",
+          d1: Boolean(env.DB)
+        }, 200, origin, env);
+      }
+
+      if (!env.DB) {
+        return json({
+          error: "D1 binding DB is missing.",
+          hint: "Bind the D1 database to this Worker with the variable name DB, then redeploy."
+        }, 500, origin, env);
+      }
 
       if (url.pathname === "/api/auth/request" && request.method === "POST") {
         return await requestMagicLink(request, env, origin);
