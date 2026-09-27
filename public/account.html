@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#070707">
+  <title>DEWIFY TEST — Account</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="account">
+  <canvas id="starfield" aria-hidden="true"></canvas>
+  <header class="site-header">
+    <div class="container nav">
+      <a class="brand" href="./">DEWIFY<span>/TEST</span></a>
+      <span class="store-pill">ACCOUNT</span>
+    </div>
+  </header>
+
+  <main class="container account-shell">
+    <p class="eyebrow">DEWIFY / ACCOUNT</p>
+    <h1>Your account.</h1>
+    <p id="accountStatus" class="account-status">Checking session…</p>
+    <p id="accountEmail" class="account-email"></p>
+    <button id="logoutButton" class="auth-submit account-logout" type="button" hidden>LOG OUT</button>
+    <a class="account-home" href="./">← Back to customizer</a>
+  </main>
+
+  <script src="stars.js"></script>
+  <script src="auth.js"></script>
+</body>
+</html>
