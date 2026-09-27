@@ -120,13 +120,16 @@ async function requestMagicLink(request, env, origin) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from: env.RESEND_FROM,
+      from: formatFrom(env.RESEND_FROM),
       to: [email],
-      subject: mode === "signup" ? "Create your DEWIFY account" : "Log in to DEWIFY",
+      subject: mode === "signup" ? "Your DEWIFY account link" : "Your DEWIFY login link",
       html: emailHtml(email, verifyUrl.toString(), mode),
-      text: (mode === "signup" ? "Create your DEWIFY account: " : "Log in to DEWIFY: ") +
+      text: (mode === "signup"
+        ? "Create your DEWIFY account using this link:"
+        : "Log in to your DEWIFY account using this link:") +
+        "\n" +
         verifyUrl.toString() +
-        "\n\nThis link expires in 10 minutes."
+        "\n\nThis one-time link expires in 10 minutes. If you did not request it, you can ignore this email."
     })
   });
 
@@ -161,22 +164,48 @@ async function verifyMagicLink(url, env) {
   }
 
   // Atomic single-use claim. A second request with the same token will update 0 rows.
-  const claimed = await env.DB.prepare(
+  // Claim the token. D1 does not need result metadata here; re-read the row
+  // afterward so the single-use condition is explicit and easy to diagnose.
+  await env.DB.prepare(
     "UPDATE magic_tokens SET used_at = ? WHERE id = ? AND used_at IS NULL AND expires_at >= ?"
   ).bind(now, stored.id, now).run();
 
-  if (!claimed.meta || claimed.meta.changes !== 1) {
+  const claimedRow = await env.DB.prepare(
+    "SELECT email, used_at FROM magic_tokens WHERE id = ? LIMIT 1"
+  ).bind(stored.id).first();
+
+  if (!claimedRow || !claimedRow.used_at || Number(claimedRow.used_at) !== now) {
     return redirectToApp(env, "used", url.origin);
   }
 
-  const result = await env.DB.prepare(
-    "INSERT INTO users (email, created_at, last_login_at) VALUES (?, ?, ?) " +
-    "ON CONFLICT(email) DO UPDATE SET last_login_at = excluded.last_login_at " +
-    "RETURNING id, email"
-  ).bind(stored.email, now, now).first();
+  let result = await env.DB.prepare(
+    "SELECT id, email FROM users WHERE email = ? LIMIT 1"
+  ).bind(stored.email).first();
 
   if (!result) {
-    throw new Error("Could not create or find the user.");
+    const created = await env.DB.prepare(
+      "INSERT INTO users (email, created_at, last_login_at) VALUES (?, ?, ?)"
+    ).bind(stored.email, now, now).run();
+
+    if (!created.success) {
+      throw new Error("Could not create the user.");
+    }
+
+    result = await env.DB.prepare(
+      "SELECT id, email FROM users WHERE email = ? LIMIT 1"
+    ).bind(stored.email).first();
+  } else {
+    const updated = await env.DB.prepare(
+      "UPDATE users SET last_login_at = ? WHERE id = ?"
+    ).bind(now, result.id).run();
+
+    if (!updated.success) {
+      throw new Error("Could not update the user.");
+    }
+  }
+
+  if (!result) {
+    throw new Error("Could not find the user after creation.");
   }
 
   const session = await signToken(
@@ -351,6 +380,13 @@ async function verifyToken(token, env) {
   }
 }
 
+function formatFrom(address) {
+  const raw = String(address || "").trim();
+  if (!raw) return "DEWIFY <digitalproducts@dewify.shop>";
+  if (raw.includes("<")) return raw;
+  return "DEWIFY <" + raw + ">";
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -362,23 +398,34 @@ function escapeHtml(value) {
 
 function emailHtml(email, link, mode) {
   const isSignup = mode === "signup";
-  const heading = isSignup ? "Create your account." : "Welcome back.";
+  const heading = isSignup ? "Create your DEWIFY account" : "Log in to DEWIFY";
   const intro = isSignup
-    ? "Use the button below to create your DEWIFY account with this email:"
-    : "Use the button below to log in to DEWIFY with this email:";
-  const button = isSignup ? "CREATE DEWIFY ACCOUNT ↗" : "LOG IN TO DEWIFY ↗";
+    ? "You requested a DEWIFY account. Use the button below to verify your email and finish creating it."
+    : "You requested a DEWIFY login. Use the button below to continue to your account.";
+  const button = isSignup ? "VERIFY EMAIL" : "CONTINUE TO DEWIFY";
 
   return `<!doctype html>
 <html lang="en">
-<body style="margin:0;background:#070707;color:#f5f5f5;font-family:Arial,sans-serif">
-  <div style="max-width:560px;margin:0 auto;padding:48px 24px">
-    <p style="font-size:11px;letter-spacing:.18em;color:#929292">DEWIFY / SIGN IN</p>
-    <h1 style="font-size:42px;line-height:1;letter-spacing:-.05em;margin:18px 0">${heading}</h1>
-    <p style="color:#aaa;line-height:1.7">${intro} <strong style="color:#f5f5f5">${escapeHtml(email)}</strong></p>
-    <p style="margin:32px 0">
-      <a href="${link}" style="display:inline-block;padding:14px 18px;background:#f5f5f5;color:#070707;text-decoration:none;font-weight:700">${button}</a>
-    </p>
-    <p style="font-size:12px;color:#707070;line-height:1.6">This link expires in 10 minutes. If you didn't request it, you can ignore this email.</p>
+<body style="margin:0;background:#f7f7f5;color:#161616;font-family:Arial,Helvetica,sans-serif">
+  <div style="max-width:560px;margin:0 auto;padding:40px 22px">
+    <div style="border:1px solid #deded8;background:#ffffff;padding:30px">
+      <p style="margin:0;font-size:11px;letter-spacing:.16em;color:#777">DEWIFY / ACCOUNT</p>
+      <h1 style="font-size:32px;line-height:1.08;letter-spacing:-.04em;margin:16px 0 12px">${heading}</h1>
+      <p style="margin:0;color:#5e5e59;line-height:1.65">${intro}</p>
+
+      <p style="margin:25px 0">
+        <a href="${link}" style="display:inline-block;padding:12px 17px;background:#171717;color:#ffffff;text-decoration:none;font-weight:700;font-size:13px">${button}</a>
+      </p>
+
+      <p style="margin:0;color:#777;font-size:12px;line-height:1.6">
+        This one-time link expires in 10 minutes.<br>
+        It was requested for <strong style="color:#333">${escapeHtml(email)}</strong>.
+      </p>
+
+      <p style="margin:22px 0 0;padding-top:18px;border-top:1px solid #e7e7e2;color:#8a8a84;font-size:11px;line-height:1.6">
+        If you didn't request this email, no action is needed.
+      </p>
+    </div>
   </div>
 </body>
 </html>`;
