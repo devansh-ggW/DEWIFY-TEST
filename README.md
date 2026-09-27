@@ -64,7 +64,7 @@ If deploying with Wrangler, `wrangler.toml` contains a commented D1 binding temp
 
 with the real Worker URL.
 
-The app is served by the same Worker that handles the API, so authentication uses same-origin requests and cookies.
+The app is served by the same Worker that handles the API, so authentication uses same-origin requests and cookies. The Worker is configured to use `digitalproducts.dewify.shop` as its Cloudflare Custom Domain.
 
 ## Files
 
