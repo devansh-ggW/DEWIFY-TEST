@@ -3,7 +3,7 @@
 
   // Replace this after the Cloudflare Worker is deployed.
   const API = String(
-    window.DEWIFY_AUTH_API || "https://dewify-test.uchiha9igh8mare.workers.dev"
+    window.DEWIFY_AUTH_API || ""
   ).replace(/\/$/, "");
 
   const state = {
