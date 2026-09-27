@@ -15,7 +15,7 @@ export default {
       if (url.pathname === "/api/health") {
         return json({
           ok: true,
-          worker: "dewify-test-auth",
+          worker: "dewify-test",
           d1: Boolean(env.DB),
           assets: Boolean(env.ASSETS)
         }, 200, origin, env);
