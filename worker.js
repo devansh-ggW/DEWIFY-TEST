@@ -122,6 +122,7 @@ async function requestMagicLink(request, env, origin) {
     body: JSON.stringify({
       from: formatFrom(env.RESEND_FROM),
       to: [email],
+      reply_to: env.RESEND_REPLY_TO || env.RESEND_FROM,
       subject: mode === "signup" ? "Your DEWIFY account link" : "Your DEWIFY login link",
       html: emailHtml(email, verifyUrl.toString(), mode),
       text: (mode === "signup"
