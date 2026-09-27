@@ -12,11 +12,12 @@ export default {
     }
 
     try {
-      if (url.pathname === "/" || url.pathname === "/api/health") {
+      if (url.pathname === "/api/health") {
         return json({
           ok: true,
           worker: "dewify-test-auth",
-          d1: Boolean(env.DB)
+          d1: Boolean(env.DB),
+          assets: Boolean(env.ASSETS)
         }, 200, origin, env);
       }
 
@@ -43,7 +44,7 @@ export default {
         return logout(origin, env);
       }
 
-      return json({ error: "Not found" }, 404, origin, env);
+      return env.ASSETS.fetch(request);
     } catch (error) {
       console.error(error);
       return json({ error: "Something went wrong." }, 500, origin, env);
@@ -145,7 +146,7 @@ async function requestMagicLink(request, env, origin) {
 async function verifyMagicLink(url, env) {
   const token = url.searchParams.get("token") || "";
   if (!token || token.length < 20) {
-    return redirectToApp(env, "invalid");
+    return redirectToApp(env, "invalid", url.origin);
   }
 
   const tokenHash = await sha256Hex(token);
@@ -156,7 +157,7 @@ async function verifyMagicLink(url, env) {
   ).bind(tokenHash).first();
 
   if (!stored || stored.used_at || stored.expires_at < now) {
-    return redirectToApp(env, stored?.used_at ? "used" : "expired");
+    return redirectToApp(env, stored?.used_at ? "used" : "expired", url.origin);
   }
 
   // Atomic single-use claim. A second request with the same token will update 0 rows.
@@ -165,7 +166,7 @@ async function verifyMagicLink(url, env) {
   ).bind(now, stored.id, now).run();
 
   if (!claimed.meta || claimed.meta.changes !== 1) {
-    return redirectToApp(env, "used");
+    return redirectToApp(env, "used", url.origin);
   }
 
   const result = await env.DB.prepare(
@@ -194,7 +195,7 @@ async function verifyMagicLink(url, env) {
         "Path=/",
         "HttpOnly",
         "Secure",
-        "SameSite=None"
+        "SameSite=Lax"
       ].join("; ")
     }
   });
@@ -241,8 +242,8 @@ function logout(origin, env) {
   });
 }
 
-function redirectToApp(env, reason) {
-  const target = new URL(appUrl(env));
+function redirectToApp(env, reason, origin) {
+  const target = new URL(appUrl(env, origin));
   target.searchParams.set("login", reason);
 
   return new Response(null, {
@@ -254,8 +255,8 @@ function redirectToApp(env, reason) {
   });
 }
 
-function appUrl(env) {
-  return env.APP_URL || (env.WEB_ORIGIN || "") + "/DEWIFY-TEST/account.html";
+function appUrl(env, origin) {
+  return env.APP_URL || origin + "/account.html";
 }
 
 function normalizeEmail(value) {
