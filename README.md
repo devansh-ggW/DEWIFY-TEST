@@ -68,7 +68,7 @@ The frontend uses credentialed cross-origin requests because GitHub Pages and th
 
 ## Files
 
-- `index.html` — customizer UI + live preview + login button
+- `index.html` — customizer UI + live preview + auth mount point
 - `app.js` — local template generator
 - `styles.css` — UI styles
 - `stars.js` — lightweight background
