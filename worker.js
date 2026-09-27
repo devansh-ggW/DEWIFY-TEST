@@ -12,6 +12,8 @@ export default {
     }
 
     try {
+      if (!env.DB) throw new Error("D1 binding DB is missing.");
+
       if (url.pathname === "/api/auth/request" && request.method === "POST") {
         return await requestMagicLink(request, env, origin);
       }
@@ -45,16 +47,22 @@ function corsHeaders(origin, env) {
     "Vary": "Origin"
   };
 
-  if (origin && origin === allowed) headers["Access-Control-Allow-Origin"] = origin;
+  if (origin && origin === allowed) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+
   return headers;
 }
 
 function json(data, status, origin, env) {
-  const headers = {
-    "Content-Type": "application/json; charset=utf-8",
-    ...corsHeaders(origin, env)
-  };
-  return new Response(JSON.stringify(data), { status, headers });
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      ...corsHeaders(origin, env)
+    }
+  });
 }
 
 async function requestMagicLink(request, env, origin) {
@@ -69,14 +77,25 @@ async function requestMagicLink(request, env, origin) {
     return json({ error: "Email service is not configured yet." }, 500, origin, env);
   }
 
-  const now = Math.floor(Date.now() / 1000);
-  const token = await signToken(
-    { typ: "magic", email, exp: now + MAGIC_TTL, nonce: randomBytes(16) },
-    env
-  );
+  // Keep only one active token per email.
+  await env.DB.prepare(
+    "DELETE FROM magic_tokens WHERE email = ? AND used_at IS NULL"
+  ).bind(email).run();
 
-  const apiBase = new URL(request.url).origin;
-  const verifyUrl = new URL("/api/auth/verify", apiBase);
+  const token = randomToken(32);
+  const tokenHash = await sha256Hex(token);
+  const now = Math.floor(Date.now() / 1000);
+  const expiresAt = now + MAGIC_TTL;
+
+  await env.DB.prepare(
+    "DELETE FROM magic_tokens WHERE expires_at < ?"
+  ).bind(now).run();
+
+  await env.DB.prepare(
+    "INSERT INTO magic_tokens (email, token_hash, expires_at, used_at) VALUES (?, ?, ?, NULL)"
+  ).bind(email, tokenHash, expiresAt).run();
+
+  const verifyUrl = new URL("/api/auth/verify", new URL(request.url).origin);
   verifyUrl.searchParams.set("token", token);
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -95,8 +114,7 @@ async function requestMagicLink(request, env, origin) {
   });
 
   if (!response.ok) {
-    const detail = await response.text();
-    console.error("Resend error:", detail);
+    console.error("Resend error:", await response.text());
     return json({ error: "We couldn't send the sign-in email." }, 502, origin, env);
   }
 
@@ -110,26 +128,50 @@ async function requestMagicLink(request, env, origin) {
 
 async function verifyMagicLink(url, env) {
   const token = url.searchParams.get("token") || "";
-  const payload = await verifyToken(token, env);
-
-  if (!payload || payload.typ !== "magic") {
-    return redirectToApp(env, "login=invalid");
+  if (!token || token.length < 20) {
+    return redirectToApp(env, "invalid");
   }
 
+  const tokenHash = await sha256Hex(token);
   const now = Math.floor(Date.now() / 1000);
-  if (!payload.email || payload.exp < now) {
-    return redirectToApp(env, "login=expired");
+
+  const stored = await env.DB.prepare(
+    "SELECT id, email, expires_at, used_at FROM magic_tokens WHERE token_hash = ? LIMIT 1"
+  ).bind(tokenHash).first();
+
+  if (!stored || stored.used_at || stored.expires_at < now) {
+    return redirectToApp(env, stored?.used_at ? "used" : "expired");
+  }
+
+  // Atomic single-use claim. A second request with the same token will update 0 rows.
+  const claimed = await env.DB.prepare(
+    "UPDATE magic_tokens SET used_at = ? WHERE id = ? AND used_at IS NULL AND expires_at >= ?"
+  ).bind(now, stored.id, now).run();
+
+  if (!claimed.meta || claimed.meta.changes !== 1) {
+    return redirectToApp(env, "used");
+  }
+
+  const result = await env.DB.prepare(
+    "INSERT INTO users (email, created_at, last_login_at) VALUES (?, ?, ?) " +
+    "ON CONFLICT(email) DO UPDATE SET last_login_at = excluded.last_login_at " +
+    "RETURNING id, email"
+  ).bind(stored.email, now, now).first();
+
+  if (!result) {
+    throw new Error("Could not create or find the user.");
   }
 
   const session = await signToken(
-    { typ: "session", email: payload.email, exp: now + SESSION_TTL },
+    { typ: "session", uid: Number(result.id), email: result.email, exp: now + SESSION_TTL },
     env
   );
 
-  const response = new Response(null, {
+  return new Response(null, {
     status: 302,
     headers: {
       "Location": appUrl(env),
+      "Cache-Control": "no-store",
       "Set-Cookie": [
         "__Host-dewify_session=" + session,
         "Max-Age=" + SESSION_TTL,
@@ -140,21 +182,31 @@ async function verifyMagicLink(url, env) {
       ].join("; ")
     }
   });
-
-  return response;
 }
 
 async function me(request, env, origin) {
-  const cookie = getCookie(request.headers.get("Cookie") || "", "__Host-dewify_session");
+  const cookie = getCookie(
+    request.headers.get("Cookie") || "",
+    "__Host-dewify_session"
+  );
+
   const payload = cookie ? await verifyToken(cookie, env) : null;
   const now = Math.floor(Date.now() / 1000);
 
-  if (!payload || payload.typ !== "session" || payload.exp < now) {
+  if (!payload || payload.typ !== "session" || !payload.uid || payload.exp < now) {
+    return json({ authenticated: false }, 200, origin, env);
+  }
+
+  const user = await env.DB.prepare(
+    "SELECT id, email FROM users WHERE id = ? LIMIT 1"
+  ).bind(Number(payload.uid)).first();
+
+  if (!user || user.email !== payload.email) {
     return json({ authenticated: false }, 200, origin, env);
   }
 
   return json(
-    { authenticated: true, email: payload.email },
+    { authenticated: true, email: user.email },
     200,
     origin,
     env
@@ -166,18 +218,23 @@ function logout(origin, env) {
     status: 200,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
       "Set-Cookie": "__Host-dewify_session=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=None",
       ...corsHeaders(origin, env)
     }
   });
 }
 
-function redirectToApp(env, status) {
+function redirectToApp(env, reason) {
   const target = new URL(appUrl(env));
-  target.searchParams.set(status.split("=")[0], status.split("=")[1]);
+  target.searchParams.set("login", reason);
+
   return new Response(null, {
     status: 302,
-    headers: { "Location": target.toString() }
+    headers: {
+      "Location": target.toString(),
+      "Cache-Control": "no-store"
+    }
   });
 }
 
@@ -203,10 +260,10 @@ function getCookie(header, name) {
   return null;
 }
 
-function randomBytes(length) {
-  const bytes = new Uint8Array(length);
+function randomToken(byteLength) {
+  const bytes = new Uint8Array(byteLength);
   crypto.getRandomValues(bytes);
-  return bytesToBase64Url(bytes);
+  return base64UrlEncode(bytes);
 }
 
 function base64UrlEncode(value) {
@@ -224,13 +281,15 @@ function base64UrlDecode(value) {
   return bytes;
 }
 
-function bytesToBase64Url(bytes) {
-  return base64UrlEncode(bytes);
+async function sha256Hex(value) {
+  const hash = await crypto.subtle.digest("SHA-256", encoder.encode(value));
+  return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 async function getKey(env) {
   const secret = env.AUTH_SECRET || env.RESEND_API_KEY;
   if (!secret) throw new Error("Missing AUTH_SECRET or RESEND_API_KEY");
+
   return crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),
